@@ -1,30 +1,16 @@
-from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
 from rest_framework.generics import CreateAPIView, GenericAPIView
-from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
 from rest_framework import status
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
 
 from .importyaml import import_shop_from_yaml
-from .models import (
-    ProductInfo,
-    Order,
-    OrderItem,
-    Contact,
-)
-
-from .serializers import (
-    UserSerializer,
-    ProductInfoSerializer,
-    OrderItemSerializer,
-    OrderSerializer,
-    ContactSerializer,
-    BasketAddSerializer,
-    BasketRemoveSerializer,
-    ConfirmOrderSerializer, LoginSerializer, ImportSerializer,
-)
+from .models import ProductInfo, Basket, BasketItem, Order, OrderItem, Address
+from .serializers import *
 
 
 # ===================== AUTH =====================
@@ -48,12 +34,11 @@ class LoginView(GenericAPIView):
         )
 
         if not user:
-            return Response(
-                {"error": "Invalid credentials"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid credentials"}, status=400)
 
+        login(request, user)
         return Response({"status": "logged in"})
+
 
 # ===================== PRODUCTS =====================
 
@@ -63,109 +48,100 @@ class ProductViewSet(ModelViewSet):
     permission_classes = [AllowAny]
 
 
-# ===================== CONTACTS =====================
+# ===================== ADDRESS =====================
 
-class ContactViewSet(ModelViewSet):
-    serializer_class = ContactSerializer
+class AddressViewSet(ModelViewSet):
+    queryset = Address.objects.all()
+    serializer_class = AddressSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Contact.objects.filter(user=self.request.user)
+        return Address.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 # ===================== BASKET =====================
 
-class BasketView(APIView):
+class BasketView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        order, _ = Order.objects.get_or_create(
-            user=request.user,
-            status='basket'
-        )
+        basket, _ = Basket.objects.get_or_create(user=request.user)
+        return Response(BasketSerializer(basket).data)
 
-        items = OrderItem.objects.filter(order=order)
-        serializer = OrderItemSerializer(items, many=True)
-        return Response(serializer.data)
+
+class BasketAddView(GenericAPIView):
+    serializer_class = BasketAddSerializer
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = BasketAddSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        order, _ = Order.objects.get_or_create(
-            user=request.user,
-            status='basket'
+        basket, _ = Basket.objects.get_or_create(user=request.user)
+
+        item, created = BasketItem.objects.get_or_create(
+            basket=basket,
+            product_info_id=serializer.validated_data['product_info_id'],
+            defaults={'quantity': serializer.validated_data['quantity']}
         )
 
-        OrderItem.objects.create(
-            order=order,
-            product_info=serializer.validated_data['product_info'],
-            quantity=serializer.validated_data['quantity']
-        )
+        if not created:
+            item.quantity += serializer.validated_data['quantity']
+            item.save()
 
         return Response({"status": "added"})
 
 
-class BasketRemoveView(APIView):
+class BasketRemoveView(GenericAPIView):
+    serializer_class = BasketRemoveSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = BasketRemoveSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        item = OrderItem.objects.filter(
+        BasketItem.objects.filter(
             id=serializer.validated_data['item_id'],
-            order__user=request.user,
-            order__status='basket'
-        ).first()
+            basket__user=request.user
+        ).delete()
 
-        if not item:
-            return Response(
-                {"error": "item not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        item.delete()
         return Response({"status": "removed"})
 
 
 # ===================== ORDER =====================
 
-class ConfirmOrderView(APIView):
+class OrderCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ConfirmOrderSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        basket = Basket.objects.get(user=request.user)
 
-        order = Order.objects.filter(
-            id=serializer.validated_data['order_id'],
-            user=request.user,
-            status='basket'
-        ).first()
+        order = Order.objects.create(user=request.user)
 
-        if not order:
-            return Response(
-                {"error": "order not found"},
-                status=status.HTTP_404_NOT_FOUND
+        for item in basket.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product_info=item.product_info,
+                quantity=item.quantity
             )
 
-        order.contact = serializer.validated_data['contact_id']
-        order.status = 'new'
-        order.save()
+        basket.items.all().delete()
 
-        return Response({"status": "confirmed"})
+        return Response({"status": "order created", "order_id": order.id})
 
-
-# ===================== ORDERS =====================
 
 class OrderViewSet(ModelViewSet):
+    queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).exclude(status='basket')
+        return Order.objects.filter(user=self.request.user)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ImportShopView(GenericAPIView):
     serializer_class = ImportSerializer
     permission_classes = [IsAuthenticated]

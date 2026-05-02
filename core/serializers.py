@@ -1,61 +1,46 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from core.models import (
+
+from .models import (
     Supplier,
     Product,
     ProductInfo,
     Parameter,
     ProductParameter,
-    Contact,
+    Address,
+    Basket,
+    BasketItem,
     Order,
     OrderItem,
 )
 
 User = get_user_model()
 
+class ImportSerializer(serializers.Serializer):
+    file = serializers.FileField()
 
-# ===================== USERS =====================
+# ===================== AUTH =====================
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'password', 'first_name', 'last_name']
+        fields = ['id', 'email', 'password', 'first_name', 'last_name', 'middle_name']
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-
-# ===================== SUPPLIERS =====================
-
-class SupplierSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-
-    class Meta:
-        model = Supplier
-        fields = '__all__'
+    password = serializers.CharField()
 
 
 # ===================== PRODUCTS =====================
 
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = '__all__'
-
-
-class ParameterSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Parameter
-        fields = '__all__'
-
-
 class ProductParameterSerializer(serializers.ModelSerializer):
-    parameter = serializers.PrimaryKeyRelatedField(queryset=Parameter.objects.all())
+    parameter = serializers.StringRelatedField()
 
     class Meta:
         model = ProductParameter
@@ -63,70 +48,52 @@ class ProductParameterSerializer(serializers.ModelSerializer):
 
 
 class ProductInfoSerializer(serializers.ModelSerializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
-    supplier = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all())
-
-    parameters = ProductParameterSerializer(
-        source='productparameter_set',
-        many=True,
-        required=False
-    )
+    product = serializers.StringRelatedField()
+    supplier = serializers.StringRelatedField()
+    parameters = ProductParameterSerializer(many=True, read_only=True)
 
     class Meta:
         model = ProductInfo
         fields = ['id', 'product', 'supplier', 'price', 'quantity', 'parameters']
 
-    def create(self, validated_data):
-        parameters_data = validated_data.pop('productparameter_set', [])
-        product_info = ProductInfo.objects.create(**validated_data)
 
-        for param in parameters_data:
-            ProductParameter.objects.create(
-                product_info=product_info,
-                parameter=param['parameter'],
-                value=param['value']
-            )
+# ===================== ADDRESS =====================
 
-        return product_info
-
-
-# ===================== CONTACTS =====================
-
-class ContactSerializer(serializers.ModelSerializer):
-    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
-
+class AddressSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Contact
+        model = Address
         fields = '__all__'
-
-
-# ===================== ORDERS =====================
-
-class OrderItemSerializer(serializers.ModelSerializer):
-    product_info = serializers.PrimaryKeyRelatedField(
-        queryset=ProductInfo.objects.all()
-    )
-
-    class Meta:
-        model = OrderItem
-        fields = ['id', 'product_info', 'quantity']
-
-
-class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(source='orderitem_set', many=True, read_only=True)
-
-    class Meta:
-        model = Order
-        fields = ['id', 'user', 'contact', 'status', 'created_at', 'items']
-        read_only_fields = ['user', 'status']
+        read_only_fields = ['user']
 
 
 # ===================== BASKET =====================
 
+class BasketItemSerializer(serializers.ModelSerializer):
+    product_info = ProductInfoSerializer(read_only=True)
+    total_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BasketItem
+        fields = ['id', 'product_info', 'quantity', 'total_price']
+
+    def get_total_price(self, obj):
+        return obj.total_price()
+
+
+class BasketSerializer(serializers.ModelSerializer):
+    items = BasketItemSerializer(many=True, read_only=True)
+    total_sum = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Basket
+        fields = ['id', 'items', 'total_sum']
+
+    def get_total_sum(self, obj):
+        return obj.total_sum()
+
+
 class BasketAddSerializer(serializers.Serializer):
-    product_info = serializers.PrimaryKeyRelatedField(
-        queryset=ProductInfo.objects.all()
-    )
+    product_info_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
 
 
@@ -134,13 +101,27 @@ class BasketRemoveSerializer(serializers.Serializer):
     item_id = serializers.IntegerField()
 
 
-# ===================== ORDER CONFIRM =====================
+# ===================== ORDER =====================
 
-class ConfirmOrderSerializer(serializers.Serializer):
-    order_id = serializers.IntegerField()
-    contact_id = serializers.PrimaryKeyRelatedField(
-        queryset=Contact.objects.all()
-    )
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_info = ProductInfoSerializer(read_only=True)
+    total_price = serializers.SerializerMethodField()
 
-class ImportSerializer(serializers.Serializer):
-    file = serializers.FileField()
+    class Meta:
+        model = OrderItem
+        fields = ['product_info', 'quantity', 'total_price']
+
+    def get_total_price(self, obj):
+        return obj.total_price()
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    total_sum = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = ['id', 'created_at', 'status', 'items', 'total_sum']
+
+    def get_total_sum(self, obj):
+        return obj.total_sum()

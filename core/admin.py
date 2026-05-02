@@ -1,36 +1,38 @@
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
-from django.shortcuts import render, redirect
-from django.urls import path
 
-from core.importyaml import import_shop_from_yaml
-from .models import (
-    Supplier,
-    Product,
-    ProductInfo,
-    Parameter,
-    ProductParameter,
-    Contact,
-    Order,
-    OrderItem,
-)
+from .models import *
 
 User = get_user_model()
 
 
-# ===================== USER =====================
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'description']
+
+@admin.register(Parameter)
+class ParameterAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name']
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'city', 'street', 'house', 'building','structure','apartment']
+
+
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    ordering = ['email']
-    list_display = ['id', 'email', 'first_name', 'last_name', 'is_staff', 'is_active']
+    ordering = ['email']   # ← ВАЖНО
+
+    list_display = ['id', 'email', 'first_name', 'last_name', 'is_staff']
     search_fields = ['email', 'first_name', 'last_name']
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Personal info', {'fields': ('first_name', 'last_name')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'middle_name')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
     )
 
     add_fieldsets = (
@@ -40,54 +42,31 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-    filter_horizontal = ('groups', 'user_permissions')
-
-
-# ===================== SUPPLIER =====================
-
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'user', 'is_active']
-    list_filter = ['is_active']
-    search_fields = ['name']
+    list_display = ['id', 'name', 'is_active']
 
-
-# ===================== PRODUCTS =====================
 
 class ProductParameterInline(admin.TabularInline):
     model = ProductParameter
     extra = 1
 
 
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name']
-    search_fields = ['name']
-
-
 @admin.register(ProductInfo)
 class ProductInfoAdmin(admin.ModelAdmin):
     list_display = ['id', 'product', 'supplier', 'price', 'quantity']
-    list_filter = ['supplier']
-    search_fields = ['product__name']
     inlines = [ProductParameterInline]
 
 
-@admin.register(Parameter)
-class ParameterAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name']
-    search_fields = ['name']
+class BasketItemInline(admin.TabularInline):
+    model = BasketItem
+    extra = 1
 
 
-# ===================== CONTACT =====================
+@admin.register(Basket)
+class BasketAdmin(admin.ModelAdmin):
+    inlines = [BasketItemInline]
 
-@admin.register(Contact)
-class ContactAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'phone', 'city', 'street']
-    search_fields = ['phone', 'city']
-
-
-# ===================== ORDERS =====================
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -97,11 +76,4 @@ class OrderItemInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'status', 'created_at']
-    list_filter = ['status']
     inlines = [OrderItemInline]
-
-
-@admin.register(OrderItem)
-class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ['id', 'order', 'product_info', 'quantity']
-
