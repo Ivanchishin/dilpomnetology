@@ -141,3 +141,6 @@ class ConfirmOrderSerializer(serializers.Serializer):
     contact_id = serializers.PrimaryKeyRelatedField(
         queryset=Contact.objects.all()
     )
+
+class ImportSerializer(serializers.Serializer):
+    file = serializers.FileField()

@@ -1,7 +1,10 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
+from django.shortcuts import render, redirect
+from django.urls import path
 
+from core.importyaml import import_shop_from_yaml
 from .models import (
     Supplier,
     Product,
@@ -101,3 +104,4 @@ class OrderAdmin(admin.ModelAdmin):
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
     list_display = ['id', 'order', 'product_info', 'quantity']
+

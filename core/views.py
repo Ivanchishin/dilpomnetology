@@ -7,6 +7,7 @@ from rest_framework import status
 
 from django.contrib.auth import authenticate
 
+from .importyaml import import_shop_from_yaml
 from .models import (
     ProductInfo,
     Order,
@@ -22,7 +23,7 @@ from .serializers import (
     ContactSerializer,
     BasketAddSerializer,
     BasketRemoveSerializer,
-    ConfirmOrderSerializer, LoginSerializer,
+    ConfirmOrderSerializer, LoginSerializer, ImportSerializer,
 )
 
 
@@ -164,3 +165,20 @@ class OrderViewSet(ModelViewSet):
 
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user).exclude(status='basket')
+
+class ImportShopView(GenericAPIView):
+    serializer_class = ImportSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data['file']
+
+        try:
+            import_shop_from_yaml(file, request.user)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+        return Response({"status": "import completed"})
