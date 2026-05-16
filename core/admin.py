@@ -60,12 +60,34 @@ class ProductInfoAdmin(admin.ModelAdmin):
 
 class BasketItemInline(admin.TabularInline):
     model = BasketItem
-    extra = 1
+    extra = 0
+
+    readonly_fields = ['product_name', 'supplier_name', 'item_total']
+
+    fields = [
+        'product_name',
+        'supplier_name',
+        'quantity',
+        'item_total'
+    ]
+
+    def product_name(self, obj):
+        return obj.product_info.product.name
+
+    def supplier_name(self, obj):
+        return obj.product_info.supplier.name
+
+    def item_total(self, obj):
+        return obj.total_price()
 
 
 @admin.register(Basket)
 class BasketAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'basket_total']
     inlines = [BasketItemInline]
+
+    def basket_total(self, obj):
+        return obj.total_sum()
 
 
 class OrderItemInline(admin.TabularInline):
@@ -75,5 +97,8 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'status', 'created_at']
+    list_display = ['id', 'user', 'status', 'created_at', 'order_total']
     inlines = [OrderItemInline]
+
+    def order_total(self, obj):
+        return obj.total_sum()

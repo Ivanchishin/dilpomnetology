@@ -46,7 +46,7 @@ ROOT_URLCONF = 'core.urls'
 
 AUTH_USER_MODEL = 'core.User'
 
-
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

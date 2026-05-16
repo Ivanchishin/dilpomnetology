@@ -16,10 +16,12 @@ from .models import (
 
 User = get_user_model()
 
+class ConfirmOrderSerializer(serializers.Serializer):
+    address_id = serializers.IntegerField()
+
 class ImportSerializer(serializers.Serializer):
     file = serializers.FileField()
 
-# ===================== AUTH =====================
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -37,7 +39,6 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField()
 
 
-# ===================== PRODUCTS =====================
 
 class ProductParameterSerializer(serializers.ModelSerializer):
     parameter = serializers.StringRelatedField()
@@ -57,16 +58,22 @@ class ProductInfoSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'supplier', 'price', 'quantity', 'parameters']
 
 
-# ===================== ADDRESS =====================
 
 class AddressSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Address
-        fields = '__all__'
-        read_only_fields = ['user']
+        fields = [
+            'id',
+            'city',
+            'street',
+            'house',
+            'building',
+            'structure',
+            'apartment'
+        ]
 
 
-# ===================== BASKET =====================
 
 class BasketItemSerializer(serializers.ModelSerializer):
     product_info = ProductInfoSerializer(read_only=True)
@@ -101,7 +108,6 @@ class BasketRemoveSerializer(serializers.Serializer):
     item_id = serializers.IntegerField()
 
 
-# ===================== ORDER =====================
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_info = ProductInfoSerializer(read_only=True)

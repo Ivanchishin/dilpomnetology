@@ -9,6 +9,7 @@ router.register('products', ProductViewSet)
 router.register('orders', OrderViewSet)
 router.register('addresses', AddressViewSet)
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('register/', RegisterView.as_view()),
@@ -17,7 +18,7 @@ urlpatterns = [
     path('basket/', BasketView.as_view()),
     path('basket/add/', BasketAddView.as_view()),
     path('basket/remove/', BasketRemoveView.as_view()),
-
+    path('order/confirm/', ConfirmOrderView.as_view()),
     path('order/create/', OrderCreateView.as_view()),
 
     path('', include(router.urls)),

@@ -1,4 +1,5 @@
 from rest_framework.generics import CreateAPIView, GenericAPIView
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -11,9 +12,10 @@ from django.contrib.auth import authenticate, login
 from .importyaml import import_shop_from_yaml
 from .models import ProductInfo, Basket, BasketItem, Order, OrderItem, Address
 from .serializers import *
+from .services import send_order_emails
 
 
-# ===================== AUTH =====================
+#Авторизация
 
 class RegisterView(CreateAPIView):
     serializer_class = UserSerializer
@@ -40,7 +42,7 @@ class LoginView(GenericAPIView):
         return Response({"status": "logged in"})
 
 
-# ===================== PRODUCTS =====================
+#Товары
 
 class ProductViewSet(ModelViewSet):
     queryset = ProductInfo.objects.all()
@@ -48,7 +50,7 @@ class ProductViewSet(ModelViewSet):
     permission_classes = [AllowAny]
 
 
-# ===================== ADDRESS =====================
+#Адреса
 
 class AddressViewSet(ModelViewSet):
     queryset = Address.objects.all()
@@ -56,20 +58,30 @@ class AddressViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Address.objects.filter(user=self.request.user)
+        # Только адреса текущего пользователя
+        return Address.objects.filter(
+            user=self.request.user
+        )
+    def perform_create(self, serializer):
+        # Автоматическая привязка адреса
+        serializer.save(user=self.request.user)
 
     def perform_create(self, serializer):
+        # Адрес автоматически привязывается к пользователю
         serializer.save(user=self.request.user)
 
 
-# ===================== BASKET =====================
+#Корзина
 
-class BasketView(GenericAPIView):
+class BasketView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        basket, _ = Basket.objects.get_or_create(user=request.user)
-        return Response(BasketSerializer(basket).data)
+        basket, _ = Basket.objects.get_or_create(
+            user=request.user
+        )
+        serializer = BasketSerializer(basket)
+        return Response(serializer.data)
 
 
 class BasketAddView(GenericAPIView):
@@ -111,13 +123,20 @@ class BasketRemoveView(GenericAPIView):
         return Response({"status": "removed"})
 
 
-# ===================== ORDER =====================
+#Заказ
 
-class OrderCreateView(GenericAPIView):
+class OrderCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+
         basket = Basket.objects.get(user=request.user)
+
+        if not basket.items.exists():
+            return Response(
+                {"error": "Basket is empty"},
+                status=400
+            )
 
         order = Order.objects.create(user=request.user)
 
@@ -127,10 +146,12 @@ class OrderCreateView(GenericAPIView):
                 product_info=item.product_info,
                 quantity=item.quantity
             )
-
+        send_order_emails(order)
         basket.items.all().delete()
-
-        return Response({"status": "order created", "order_id": order.id})
+        return Response({
+            "status": "заказ создан",
+            "order_id": order.id
+        })
 
 
 class OrderViewSet(ModelViewSet):
@@ -139,7 +160,12 @@ class OrderViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        # Только заказы текущего пользователя
+        return Order.objects.filter(
+            user=self.request.user
+        ).exclude(
+            status='basket'
+        )
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ImportShopView(GenericAPIView):
@@ -158,3 +184,55 @@ class ImportShopView(GenericAPIView):
             return Response({"error": str(e)}, status=400)
 
         return Response({"status": "import completed"})
+
+
+
+
+class ConfirmOrderView(GenericAPIView):
+    serializer_class = ConfirmOrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        address = Address.objects.filter(
+            id=serializer.validated_data['address_id'],
+            user=request.user
+        ).first()
+
+        if not address:
+            return Response(
+                {"error": "Address not found"},
+                status=404
+            )
+
+        basket = Basket.objects.get(user=request.user)
+
+        if not basket.items.exists():
+            return Response(
+                {"error": "Basket is empty"},
+                status=400
+            )
+
+        order = Order.objects.create(
+            user=request.user,
+            address=address,
+            status='pending'
+        )
+
+        for item in basket.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product_info=item.product_info,
+                quantity=item.quantity
+            )
+
+        send_order_emails(order)
+        basket.items.all().delete()
+
+        return Response({
+            "status": "order confirmed",
+            "order_id": order.id
+        })

@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 
-# ===================== USERS =====================
+#Пользователи
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -46,19 +46,26 @@ class Address(models.Model):
     structure = models.CharField(max_length=20, blank=True)
     apartment = models.CharField(max_length=20, blank=True)
 
-# ===================== SUPPLIERS =====================
+    def __str__(self):
+        return f"{self.city}, {self.street}, {self.house}, {self. building}, {self.structure}, {self.apartment}"
+
+#Поставщики
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.name
 
-# ===================== PRODUCTS =====================
+#Товары
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
 
+    def __str__(self):
+        return self.name
 
 class ProductInfo(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='infos')
@@ -70,20 +77,28 @@ class ProductInfo(models.Model):
     class Meta:
         unique_together = ('product', 'supplier')
 
+    def __str__(self):
+        return f"{self.product.name} | {self.supplier.name} | {self.price}"
+
 class Parameter(models.Model):
     name = models.CharField(max_length=255)
+    def __str__(self):
+        return self.name
 
 class ProductParameter(models.Model):
     product_info = models.ForeignKey(ProductInfo, on_delete=models.CASCADE, related_name='parameters')
     parameter = models.ForeignKey(Parameter, on_delete=models.CASCADE)
     value = models.CharField(max_length=255)
 
-
+#Корзина
 class Basket(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='basket')
 
     def total_sum(self):
         return sum(item.total_price() for item in self.items.all())
+
+    def __str__(self):
+        return f"Basket #{self.id} - {self.user.email} - Total: {self.total_sum()}"
 
 class BasketItem(models.Model):
     basket = models.ForeignKey(Basket, on_delete=models.CASCADE, related_name='items')
@@ -92,11 +107,12 @@ class BasketItem(models.Model):
 
     def total_price(self):
         return self.quantity * self.product_info.price
-# ===================== ORDERS =====================
 
+#Заказы
 class Order(models.Model):
     STATUS_CHOICES = (
-        ('new', 'New'),
+        ('basket', 'Basket'),
+        ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
         ('shipped', 'Shipped'),
         ('done', 'Done'),

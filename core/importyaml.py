@@ -1,5 +1,3 @@
-
-
 import yaml
 from django.db import transaction
 
@@ -20,20 +18,20 @@ def import_shop_from_yaml(file, user):
 
     with transaction.atomic():
 
-        # === Supplier ===
+        #Поставщики
         supplier, _ = Supplier.objects.get_or_create(
             name=data['shop']
         )
 
         for item in data['goods']:
 
-            # === Product ===
+            #Товары
             product, _ = Product.objects.get_or_create(
                 name=item['name'],
                 defaults={'description': item.get('model', '')}
             )
 
-            # === ProductInfo ===
+            #Информация о товарах
             product_info, _ = ProductInfo.objects.update_or_create(
                 product=product,
                 supplier=supplier,
