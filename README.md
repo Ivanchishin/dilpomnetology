@@ -3,13 +3,13 @@
 ## Backend-приложение для автоматизации закупок
 
 ### Установка и запуск проекта
-
-pip install -r requirements.txt
-python manage.py makemigrations
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
-
+<ul>
+<li>pip install -r requirements.txt</li>
+<li>python manage.py makemigrations</li>
+<li>python manage.py migrate</li>
+<li>python manage.py createsuperuser</li>
+<li>python manage.py runserver</li>
+</ul>
 Проект будет доступен:
 
 http://127.0.0.1:8000/
