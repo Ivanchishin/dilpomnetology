@@ -1,2 +1,5 @@
 db.sqlite3
 .env
+.pyc
+logs.txt
+__pycache__

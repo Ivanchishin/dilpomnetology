@@ -7,3 +7,4 @@ PyYAML
 celery
 redis
 gunicorn
+whitenoise
