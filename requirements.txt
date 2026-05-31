@@ -6,3 +6,4 @@ djangorestframework-simplejwt
 PyYAML
 celery
 redis
+gunicorn

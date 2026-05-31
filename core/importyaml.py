@@ -24,7 +24,8 @@ def import_shop_from_yaml(file, user):
         )
 
         for item in data['goods']:
-
+            print("NAME:", item['name'])
+            print("MODEL:", item.get('model'))
             #Товары
             product, _ = Product.objects.get_or_create(
                 name=item['name'],

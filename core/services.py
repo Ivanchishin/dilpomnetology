@@ -1,13 +1,12 @@
 from django.core.mail import send_mail
 from django.conf import settings
+from django.core.files.storage import default_storage
 
 
 def send_order_emails(order):
-
     items_text = ""
 
     for item in order.items.all():
-
         items_text += (
             f"Товар: {item.product_info.product.name}\n"
             f"Поставщик: {item.product_info.supplier.name}\n"

@@ -1,3 +1,4 @@
+from django.core.files.storage import default_storage
 from rest_framework.generics import CreateAPIView, GenericAPIView
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -6,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-
+from .tasks import send_order_emails_task, import_yaml_task
 from django.contrib.auth import authenticate, login
 
 from .importyaml import import_shop_from_yaml
@@ -62,13 +63,12 @@ class AddressViewSet(ModelViewSet):
         return Address.objects.filter(
             user=self.request.user
         )
+
     def perform_create(self, serializer):
         # Автоматическая привязка адреса
         serializer.save(user=self.request.user)
 
-    def perform_create(self, serializer):
-        # Адрес автоматически привязывается к пользователю
-        serializer.save(user=self.request.user)
+
 
 
 #Корзина
@@ -134,7 +134,7 @@ class OrderCreateView(APIView):
 
         if not basket.items.exists():
             return Response(
-                {"error": "Basket is empty"},
+                {"Ошибка": "Корзина пустая"},
                 status=400
             )
 
@@ -146,7 +146,7 @@ class OrderCreateView(APIView):
                 product_info=item.product_info,
                 quantity=item.quantity
             )
-        send_order_emails(order)
+        send_order_emails_task.delay(order.id)
         basket.items.all().delete()
         return Response({
             "status": "заказ создан",
@@ -175,16 +175,24 @@ class ImportShopView(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        file = serializer.validated_data['file']
-
+        uploaded_file = serializer.validated_data['file']
         try:
-            import_shop_from_yaml(file, request.user)
+            file_path = default_storage.save(
+                f"imports/{uploaded_file.name}",
+                uploaded_file
+            )
+            import_yaml_task.delay(
+                file_path,
+                request.user.id
+            )
         except Exception as e:
-            return Response({"error": str(e)}, status=400)
-
-        return Response({"status": "import completed"})
-
+            return Response(
+                {"error": str(e)},
+                status=400
+            )
+        return Response({
+            "status": "Импорт поставлен в очередь"
+        })
 
 
 
@@ -204,7 +212,7 @@ class ConfirmOrderView(GenericAPIView):
 
         if not address:
             return Response(
-                {"error": "Address not found"},
+                {"Ошибка": "Адрес не найден"},
                 status=404
             )
 
@@ -212,7 +220,7 @@ class ConfirmOrderView(GenericAPIView):
 
         if not basket.items.exists():
             return Response(
-                {"error": "Basket is empty"},
+                {"Ошибка": "Корзина пустая"},
                 status=400
             )
 
@@ -229,10 +237,10 @@ class ConfirmOrderView(GenericAPIView):
                 quantity=item.quantity
             )
 
-        send_order_emails(order)
+        send_order_emails_task.delay(order.id)
         basket.items.all().delete()
 
         return Response({
-            "status": "order confirmed",
+            "status": "Заказ подтверждён",
             "order_id": order.id
         })
