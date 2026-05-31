@@ -4,11 +4,14 @@
 
 ### Установка и запуск проекта
 <ul>
-<li>pip install -r requirements.txt</li>
-<li>python manage.py makemigrations</li>
-<li>python manage.py migrate</li>
-<li>python manage.py createsuperuser</li>
-<li>python manage.py runserver</li>
+<li>Клонировать репозиторий https://github.com/Ivanchishin/dilpomnetology.git</li>
+<li>Создать файл .env по примеру в проекте</li>
+<li>Создать docker образ docker compose build --no-cache</li>
+<li>Запустить контейнеры docker compose up -d</li>
+<li>Проверить состояние docker compose ps</li>
+<li>Выполнить миграции docker compose exec web python manage.py migrate</li>
+<li>Создать суперпользователя docker compose exec web python manage.py createsuperuser</li>
+<li>Собрать статические файлы docker compose exec web python manage.py collectstatic --noinput</li>
 </ul>
 Проект будет доступен:
 
@@ -18,12 +21,6 @@ http://127.0.0.1:8000/
 
 http://127.0.0.1:8000/admin/
 
-Email уведомления
-
-Для тестирования используется вывод email в консоль.
-
-settings.py
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 ### Описание работы API
 
